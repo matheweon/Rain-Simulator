@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Rain Simulator</title>
+		<style type="text/css">
+			body {
+				margin: 0px;
+				background-color: #000;
+			}
+			#floor {
+				position: fixed;
+				height: 10px;
+				width: 1000px;
+				top: 1000px;
+				background-color: #888;
+			}
+			p {
+				font-family: Verdana;
+				font-size: 20px;
+				color: #fff;
+				-webkit-margin-before: 0px;
+				-webkit-margin-after: 0px;
+			}
+			output {
+				font-family: Verdana;
+				font-size: 20px;
+				color: #fff;
+			}
+			.settings {
+				position: fixed;
+				left: 1010px;
+			}
+			#simulationSpeedText {
+				top: 10px;
+			}
+			#simulationSpeedRange {
+				top: 40px;
+			}
+			#simulationSpeedOutput {
+				top: 70px;
+			}
+			#lightningSpeedText {
+				top: 110px;
+			}
+			#lightningSpeedRange {
+				top: 140px;
+			}
+			#lightningSpeedOutput {
+				top: 170px;
+			}
+			#windSwaySpeedText {
+				top: 210px;
+			}
+			#windSwaySpeedRange {
+				top: 240px;
+			}
+			#windSwaySpeedOutput {
+				top: 270px;
+			}
+			#windSwayRightText {
+				top: 310px;
+			}
+			#windSwayRightRange {
+				top: 340px;
+			}
+			#windSwayRightOutput {
+				top: 370px;
+			}
+			#windSwayLeftText {
+				top: 410px;
+			}
+			#windSwayLeftRange {
+				top: 440px;
+			}
+			#windSwayLeftOutput {
+				top: 470px;
+			}
+		</style>
+		<script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+	</head>
+	<body>
+		<div id="floor"></div>
+		<div id="wind" placeholder="0"></div>
+		<form oninput="output1.value = input1.value">
+			<p class="settings" id="simulationSpeedText">Simulation Speed</p>
+			<input class="settings" id="simulationSpeedRange" type="range" min="0.1" max="3" step="0.1" value="1" name="input1"></input>
+			<output class="settings" id="simulationSpeedOutput" for="simulationSpeed" name="output1">1</output>
+		</form>
+		<form oninput="output2.value = input2.value">
+			<p class="settings" id="lightningSpeedText">Lightning Speed</p>
+			<input class="settings" id="lightningSpeedRange" type="range" min="0" max="20" step="0.2" value="1" name="input2"></input>
+			<output class="settings" id="lightningSpeedOutput" for="lightningSpeed" name="output2">1</output>
+		</form>
+		<form oninput="output3.value = input3.value">
+			<p class="settings" id="windSwaySpeedText">Wind Sway Speed</p>
+			<input class="settings" id="windSwaySpeedRange" type="range" min="0" max="5" step="0.1" value="1" name="input3"></input>
+			<output class="settings" id="windSwaySpeedOutput" for="windSwaySpeed" name="output3">1</output>
+		</form>
+		<form oninput="output4.value = input4.value">
+			<p class="settings" id="windSwayRightText">Wind Sway Right Bound</p>
+			<input class="settings" id="windSwayRightRange" type="range" min="-500" max="500" step="10" value="250" name="input4"></input>
+			<output class="settings" id="windSwayRightOutput" for="windSwayRight" name="output4">250</output>
+		</form>
+		<form oninput="output5.value = input5.value">
+			<p class="settings" id="windSwayLeftText">Wind Sway Left Bound</p>
+			<input class="settings" id="windSwayLeftRange" type="range" min="-500" max="500" step="10" value="-250" name="input5"></input>
+			<output class="settings" id="windSwayLeftOutput" for="windSwayLeft" name="output5">-250</output>
+		</form>
+		<script type="text/javascript">
+			var svg = d3.select("body").append("svg")
+				.attr("width", 1000)
+				.attr("height", 1000);
+			function randomX() {
+				return Math.round(Math.random() * (1000 + Math.abs(windSpeed * 2)) - Math.abs(windSpeed));
+			}
+			var simulationSpeed = 1;
+			var simulationSpeedInverse = 1;
+			var lightningSpeed = 1;
+			var windSwaySpeed = 1;
+			var windSwayRight = 250;
+			var windSwayLeft = -250;
+			function settings() {
+				if (simulationSpeed !== parseFloat(document.getElementById("simulationSpeedRange").value)) {
+					d3.selectAll(".rain").remove();
+					d3.selectAll(".splash").remove();
+					d3.selectAll(".rain").interrupt();
+					d3.selectAll(".splash").interrupt();
+				}
+				if (windSwaySpeed !== parseInt(document.getElementById("windSwaySpeedRange").value)) {
+					windTimeout = 0;
+				}
+				if (lightningSpeed !== parseInt(document.getElementById("lightningSpeedRange").value)) {
+					lightningTimeout = 0;
+				}
+				simulationSpeed = parseFloat(document.getElementById("simulationSpeedRange").value);
+				lightningSpeed = parseInt(document.getElementById("lightningSpeedRange").value);
+				windSwaySpeed = parseInt(document.getElementById("windSwaySpeedRange").value);
+				windSwayRight = parseInt(document.getElementById("windSwayRightRange").value);
+				windSwayLeft = parseInt(document.getElementById("windSwayLeftRange").value);
+				simulationSpeedInverse = 1 / simulationSpeed;
+				windSwaySpeedInverse = 100 / windSwaySpeed;
+				lightningSpeedInverse = 100 / lightningSpeed;
+			}
+			var settingsTimer = setInterval(settings, 10)
+			var colorArray = [];
+			for (var i = 1; i < 12; i++) {
+				colorArray.push("#00" + (i + 4).toString(16));
+			}
+			for (var i = 1; i < 4; i++) {
+				colorArray.push("#" + i + i + "f");
+			}
+			function spawn() {
+				var random = randomX();
+				svg.selectAll("svg")
+					.data([1])
+					.enter()
+						.append("rect")
+						.attr("class", "rain")
+						.attr("height", function() {
+							return Math.round(Math.random() * 20 + 30);
+						})
+						.attr("width", 1)
+						.style("fill", function() {
+							return colorArray[Math.ceil(Math.random() * 15)];
+						})
+						.attr("transform", function(i) {
+							rot = (Math.atan(windSpeed / 1200)) / Math.PI * 180 * (-1);
+							return "translate(" + random + ", -200) rotate(" + rot + ")";
+						})
+						.transition()
+							.duration(function() {
+								return Math.random() * 1000 * simulationSpeedInverse + 1500 * simulationSpeedInverse;
+							})
+							.ease("exp-in")
+							.attr("transform", function(i) {
+								PosX = random + windSpeed;
+								rot = (Math.atan(windSpeed / 1200)) / Math.PI * 180 * (-1);
+								return "translate(" + PosX + ", 1000) rotate(" + rot + ")";
+							})
+							.each("end", function(i) {
+								splash(random + windSpeed);
+							})
+							.remove();
+			}
+			var spawnTimer = setInterval(spawn, 10);
+			function randomGen(most, roundUp) {
+				if (roundUp === true) {
+					return Math.ceil(Math.random() * (most));
+				} else {
+					return Math.floor(Math.random() * (most + 1));
+				}
+			}
+			function splash(x) {
+				svg.selectAll("svg")
+					.data(function() {
+						return d3.range(randomGen(3, true));
+					})
+					.enter()
+						.append("circle")
+						.attr("class", "splash")
+						.attr("r", function() {
+							return randomGen(2, true);
+						})
+						.style("fill", function() {
+							return colorArray[Math.ceil(Math.random() * 15)];
+						})
+						.attr("transform", function() {
+							return "translate(" + x + ", 1000)";
+						})
+						.transition()
+							.duration(150 * simulationSpeedInverse)
+							.ease("linear")
+							.attr("transform", function() {
+								var splashX = x + Math.round(Math.random() * 200) - 100;
+								var splashY = 1000 - (Math.round(Math.random() * 50) + 50);
+								return "translate(" + splashX + "," + splashY + ")";
+							})
+							.remove();
+			}
+			svg.selectAll("svg")
+					.data(d3.range(1))
+					.enter()
+						.append("rect")
+						.attr("id", "lightning")
+						.attr("height", 1000)
+						.attr("width" ,1000)
+						.style("fill", "#fff")
+						.style("opacity", 0);
+			var lightningTimer = 0;
+			var lightningTimeout = 0;
+			function lightning() {
+				lightningTimer += 1;
+				if (lightningTimer > lightningTimeout) {
+					lightningTimer = 0;
+					lightningTimeout = Math.round((Math.random() * lightningSpeedInverse + lightningSpeedInverse / 2) * simulationSpeedInverse);
+					svg.selectAll("#lightning")
+						.style("opacity", 1)
+						.transition()
+							.duration(500 * simulationSpeedInverse)
+							.ease("sine-out")
+							.style("opacity", 0);
+				}
+			}
+			var spawnLightningTimer = setInterval(lightning, 100);
+			var windSwayEnd = 0;
+			var windTimer = 0;
+			var windTimeout = 0;
+			var windSpeed = 0;
+			function wind() {
+				windTimer += 1;
+				if (windTimer > windTimeout) {
+					windTimer = 0;
+					windTimeout = Math.round((Math.random() * windSwaySpeedInverse + windSwaySpeedInverse / 2) * simulationSpeedInverse) * 10;
+					windSwayEnd = Math.round((Math.random() * (windSwayRight - windSwayLeft) + windSwayLeft));
+					d3.selectAll("#wind")
+						.transition()
+							.duration(windTimeout * 10 * simulationSpeedInverse)
+							.ease("back-in-out")
+							.attr("placeholder", windSwayEnd);
+				}
+				var parsedInt = d3.selectAll("#wind").attr("placeholder");
+				windSpeed = parseInt(parsedInt, 10);
+			}
+			var windSwayTimer = setInterval(wind, 10);
+		</script>
+	</body>
+</html>
